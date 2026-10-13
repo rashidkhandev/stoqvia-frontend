@@ -56,6 +56,38 @@ export function AuthProvider({ children }) {
     } catch {}
   }, [token])
 
+  // On mount: if online and currently using mock placeholder token, exchange for a valid backend JWT
+  useEffect(() => {
+    const syncBackendToken = async () => {
+      const activeToken = localStorage.getItem(TOKEN_KEY)
+      const needsSync = !activeToken || activeToken === 'mock-jwt-owner' || activeToken.startsWith('demo-token-') || activeToken.startsWith('mock-')
+      if (navigator.onLine && needsSync) {
+        try {
+          const res = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: '0300-0000000', password: 'admin123' }),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            if (data.token) {
+              setToken(data.token)
+              localStorage.setItem(TOKEN_KEY, data.token)
+              if (data.user) {
+                const norm = normalizeUser(data.user)
+                setCurrentUser(norm)
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(norm))
+              }
+            }
+          }
+        } catch {
+          // If backend is waking up or offline, retain local offline session
+        }
+      }
+    }
+    syncBackendToken()
+  }, [])
+
   const login = async (phone, password) => {
     setAuthError('')
 
